@@ -55,6 +55,10 @@ case class TypeChecker() {
         require(at==bt || at.isEmpty || bt.isEmpty, s"$bin, $at, $bt")
         at
       }
+      case unary: UnaryOperator => {
+        val at = inferType(unary.e,paramTypes)
+        at
+      }
     }
   }
 }

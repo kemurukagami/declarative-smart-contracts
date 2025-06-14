@@ -1,4 +1,5 @@
 package datalog
+import scala.math._
 
 sealed abstract class Expr {
   def _type: Type
@@ -39,6 +40,19 @@ case class Negative(e: Arithmetic) extends Arithmetic {
   override def toString: String = s"-${_paren(e)}"
   def getParameters(): Set[Parameter] = e.getParameters()
 }
+sealed abstract class UnaryOperator extends Arithmetic {
+  def e: Arithmetic
+  def getParameters(): Set[Parameter] = e.getParameters()
+}
+case class Sqrt(e: Arithmetic) extends UnaryOperator {
+  val _type = e._type
+  override def toString: String = s"Math.sqrt(${e})"
+}
+case class Log10(e: Arithmetic) extends UnaryOperator {
+  val _type = e._type
+  override def toString: String = s"Math.log10(${e})"
+}
+
 sealed abstract class BinaryOperator extends Arithmetic {
   def a: Arithmetic
   def b: Arithmetic
@@ -69,7 +83,13 @@ case class Min(a: Arithmetic, b: Arithmetic) extends BinaryOperator {
   def _type: Type = a._type
   override def toString: String = s"$a < $b ? $a : $b"
 }
+case class Pow(a: Arithmetic, b: Arithmetic) extends BinaryOperator {
+  require(a._type==b._type)
+  def _type: Type = a._type
+  override def toString: String = s"DSMath.rpow(${_paren(a)},${_paren(b)})"
+}
 object Arithmetic {
+  // chain rule implemented in JoinView when this function is used
   def derivativeOf(e: Arithmetic, x: Param): Arithmetic = e match {
     case Zero(t) => Zero(t)
     case One(t) => Zero(t)
@@ -77,9 +97,15 @@ object Arithmetic {
     case Negative(e2) => Negative(derivativeOf(e2,x))
     case Add(a,b) => Add(derivativeOf(a,x), derivativeOf(b,x))
     case Sub(a,b) => Sub(derivativeOf(a,x), derivativeOf(b,x))
-    case Mul(a,b) => Mul(derivativeOf(a,x), derivativeOf(b,x))
-    case Div(a,b) => ???
+    // case Mul(a,b) => Mul(derivativeOf(a,x), derivativeOf(b,x))
+    case Mul(a,b) => Add(Mul(derivativeOf(a,x), b), Mul(a, derivativeOf(b,x)))
+    // case Div(a,b) => ???
+    case Div(a,b) => Div(Sub(Mul(derivativeOf(a,x), b), Mul(a, derivativeOf(b,x))), Mul(b,b))
     case Min(_,_) => ???
+    case Sqrt(a) => Div(derivativeOf(a,x), Mul(Param(Constant(a._type, "2")), Sqrt(a)))
+    // case Log10(a) => Div(One(a._type), Mul(a, Ln(10))) 
+    case Log10(_) => ??? // Could not find math library to support natural log
+    case Pow(a,b) => Mul(b, Pow(a, Sub(b, One(a._type))))
   }
   def simplify(expr: Arithmetic): Arithmetic = {
     def _simplify(expr: Arithmetic): Arithmetic = expr match {
@@ -111,6 +137,20 @@ object Arithmetic {
       case Div(a,b) => Div(_simplify(a),_simplify(b))
 
       case Min(a,b) => Min(_simplify(a),_simplify(b))
+
+      
+      case Sqrt(One(a)) => One(a)
+      case Sqrt(Zero(a)) => Zero(a)
+      case Sqrt(a) => Sqrt(_simplify(a))
+
+      case Log10(One(a)) => Zero(a)
+      case Log10(a) => Log10(_simplify(a))
+
+      case Pow(One(t), b) => One(t)
+      case Pow(Zero(t), b) => Zero(t)
+      case Pow(a, Zero(t)) => One(t)
+      case Pow(a, One(_)) => _simplify(a)
+      case Pow(a, b) => Pow(_simplify(a), _simplify(b))
     }
 
     var e1 = expr
@@ -133,6 +173,11 @@ object Arithmetic {
         case Mul(a, b) => Mul(updateArithmeticType(a,newType), updateArithmeticType(b,newType))
         case Div(a, b) => Div(updateArithmeticType(a,newType), updateArithmeticType(b,newType))
         case Min(a, b) => Min(updateArithmeticType(a,newType), updateArithmeticType(b,newType))
+        case Pow(a, b) => Pow(updateArithmeticType(a,newType), updateArithmeticType(b,newType))
+      }
+      case opun: UnaryOperator => opun match {
+        case Sqrt(a) => Sqrt(updateArithmeticType(a,newType))
+        case Log10(a) => Log10(updateArithmeticType(a,newType))
       }
     }
   }
@@ -142,12 +187,17 @@ object Arithmetic {
     case One(_type) => arith
     case Param(p) => Param(mapping.getOrElse(p,p))
     case Negative(e) => Negative(rename(e, mapping))
-    case op: BinaryOperator => op match {
+    case opbi: BinaryOperator => opbi match {
       case Add(a, b) => Add(rename(a, mapping), rename(b, mapping))
       case Sub(a, b) => Sub(rename(a, mapping), rename(b, mapping))
       case Mul(a, b) => Mul(rename(a, mapping), rename(b, mapping))
       case Div(a, b) => Div(rename(a, mapping), rename(b, mapping))
       case Min(a, b) => Min(rename(a, mapping), rename(b, mapping))
+      case Pow(a, b) => Pow(rename(a, mapping), rename(b, mapping))
+    }
+    case opun: UnaryOperator => opun match {
+      case Sqrt(a) => Sqrt(rename(a, mapping))
+      case Log10(a) => Log10(rename(a, mapping))
     }
   }
 
@@ -155,12 +205,17 @@ object Arithmetic {
     case _: Zero | _:One => arith
     case p: Param => mapping.getOrElse(p,p)
     case Negative(e) => Negative(replace(e, mapping))
-    case op: BinaryOperator => op match {
+    case opbi: BinaryOperator => opbi match {
       case Add(a, b) => Add(replace(a, mapping), replace(b,mapping))
       case Sub(a, b) => Sub(replace(a, mapping), replace(b,mapping))
       case Mul(a, b) => Mul(replace(a, mapping), replace(b,mapping))
       case Div(a, b) => Div(replace(a, mapping), replace(b,mapping))
       case Min(a, b) => Min(replace(a, mapping), replace(b,mapping))
+      case Pow(a, b) => Pow(replace(a, mapping), replace(b,mapping))
+    }
+    case opun: UnaryOperator => opun match {
+      case Sqrt(a) => Sqrt(replace(a, mapping))
+      case Log10(a) => Log10(replace(a, mapping))
     }
   }
 

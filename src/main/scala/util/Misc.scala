@@ -6,6 +6,7 @@ import java.io.{BufferedWriter, File, FileWriter}
 import scala.io.Source
 
 object Misc {
+  var importable_functions: Set[String] = Set()
   def fileToString(filename: String): String = {
     val src = Source.fromFile(filename)
     val s = src.mkString
@@ -13,9 +14,12 @@ object Misc {
     s
   }
 
-  def writeToFile(content: String, outFileName: String): Unit = {
+  def writeToFile(content: String, outFileName: String, imports: Set[String] = Set()): Unit = {
     val file = new File(outFileName)
     val bw = new BufferedWriter(new FileWriter(file))
+    imports.foreach { imp =>
+      bw.write(imp + "\n")
+    }
     bw.write(content)
     bw.close()
   }
@@ -49,6 +53,7 @@ object Misc {
     val parser = new Parser()
     val raw = parser.parseAll(parser.program, inputStr).get
     val typeChecker = TypeChecker()
+    importable_functions = parser.importable_functions
     typeChecker.updateTypes(raw)
   }
 

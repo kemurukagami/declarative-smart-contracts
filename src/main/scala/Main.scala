@@ -13,26 +13,33 @@ object Main extends App {
   val outDirWithInstrumentations = "solidity/dsc-instrument"
   val benchmarkDir = "benchmarks"
   val allBenchmarks = List(
-    "crowFunding.dl",
-    "erc20.dl",
-    //"nft.dl",
-    "wallet.dl",
-    "vestingWallet.dl",
-    //"paymentSplitter.dl",
-    "erc777.dl",
-     //"erc1155.dl", // Lan: broke when run dependency-graph
-    "controllable.dl",
-    "tokenPartition.dl",
-    "tether.dl",
-    "bnb.dl",
-    "matic.dl",
-    "ltcSwapAsset.dl",
-    // "theta.dl",
-    "wbtc.dl",
-    "shib.dl",
-    "linktoken.dl",
-    // "voting.dl",
-    "auction.dl")
+    // "crowFunding.dl",
+    // "erc20.dl",
+    // //"nft.dl",
+    // "wallet.dl",
+    // "vestingWallet.dl",
+    // //"paymentSplitter.dl",
+    // "erc777.dl",
+    //  //"erc1155.dl", // Lan: broke when run dependency-graph
+    // "controllable.dl",
+    // "tokenPartition.dl",
+    // "tether.dl",
+    // "bnb.dl",
+    // "matic.dl",
+    // "ltcSwapAsset.dl",
+    // // "theta.dl",
+    // "wbtc.dl",
+    // "shib.dl",
+    // "linktoken.dl",
+    // // "voting.dl",
+    // "auction.dl",
+    
+    // "uniswap_v2.dl", 
+    // "uniswap_v2_pair.dl"
+    // "erc721.dl"
+    // "vestingWalletWithCliff.dl"
+    "test_unary.dl"
+    )
 
   def getMaterializedRelations(dl: Program, filepath: String): List[(Set[Relation],Set[Relation])] = {
     if (isFileExists(filepath)) {
@@ -63,12 +70,12 @@ object Main extends App {
     val filename = Misc.getFileNameFromPath(filepath)
     val dl_org = parseProgram(filepath)  // the program object => original dl version
     val rowLists = getMaterializedRelations(dl_org, materializePath)
-    println(rowLists.getClass.getName)
-    println(rowLists.mkString(","))
+    // println(rowLists.getClass.getName)
+    // println(rowLists.mkString(","))
     var count = 0
     for(row <- rowLists){
       count += 1
-      println(row.getClass.getName)
+      // println(row.getClass.getName)
       val (materializedRelations: Set[Relation], functionalRelations: Set[Relation]) = row
       val dl = dl_org.addFunctions(functionalRelations)
       val impTranslator: ImperativeTranslator = if (consolidateUpdates) {
@@ -85,13 +92,27 @@ object Main extends App {
       val solidity = SolidityTranslator(imperative, dl, dl.interfaces, dl.violations, materializedRelations,
         isInstrument, monitorViolations, enableProjection).translate()
       val outfile = Paths.get(outDir, s"$filename/$filename$count.sol")
-      Misc.writeToFile(solidity.toString, outfile.toString)
-      if (displayResult) {
-        println(dl)
-        println(imperative)
-        println(s"Solidity program:\n${solidity}")
+      var imports: Set[String] = Set()
+      if (Misc.importable_functions.nonEmpty) {
+        for (func <- Misc.importable_functions) {
+          println("Importing function: " + func)
+          if (func == "log10" || func == "sqrt") {
+            imports = imports + "import \"@openzeppelin/contracts/utils/math/Math.sol\";"
+          }
+          if (func == "rpow") {
+            val lib_path = "./src/main/scala/libraries/DSMath.sol"
+            val lib_content = fileToString(lib_path)
+            imports = imports + lib_content
+          }
+        }
       }
-      println(s"${impTranslator.ruleSize} rules.")
+      Misc.writeToFile(solidity.toString, outfile.toString, imports)
+      // if (displayResult) {
+      //   println(dl)
+      //   println(imperative)
+      //   println(s"Solidity program:\n${solidity}")
+      // }
+      // println(s"${impTranslator.ruleSize} rules.")
     }
 
   }

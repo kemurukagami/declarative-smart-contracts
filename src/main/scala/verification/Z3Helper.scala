@@ -1,7 +1,7 @@
 package verification
 
-import com.microsoft.z3.{ArithSort, ArraySort, BitVecSort, BoolExpr, Context, Expr, Quantifier, Sort, Symbol, TupleSort}
-import datalog.{Add, ArithOperator, Arithmetic, Assign, Balance, BinaryOperator, Constant, Div, Equal, Functor, Geq, Greater, Leq, Lesser, Literal, Min, MsgSender, MsgValue, Mul, Negative, Now, One, Param, Parameter, Receive, Relation, ReservedRelation, Send, SimpleRelation, SingletonRelation, Sub, This, Type, Unequal, Variable, Zero}
+import com.microsoft.z3.{ArithSort, ArraySort, BitVecSort, BoolExpr, Context, Expr, Quantifier, Sort, Symbol, TupleSort, ArithExpr}
+import datalog._
 
 object Z3Helper {
   val uintSize: Int = 32
@@ -167,6 +167,18 @@ object Z3Helper {
           case _:Mul => ctx.mkMul(x,y)
           case _:Div => ctx.mkDiv(x,y)
           case _:Min => ctx.mkITE(ctx.mkLt(x,y),x,y)
+          case _:Pow => ctx.mkPower(x,y)
+        }
+      }
+      case unary: UnaryOperator => {
+        val x = functorExprToZ3(ctx, unary.e, prefix).asInstanceOf[Expr[ArithSort]]
+        unary match {
+          case _:Sqrt => ctx.mkPower(x,ctx.mkReal("0.5"))
+          case _:Log10 =>
+            // log is not supported by Z3, so we use Taylor series for approximation
+            val lnX = mkLnTaylor(ctx, x.asInstanceOf[ArithExpr[_]])
+            val ln10 = ctx.mkReal("2.302585092994045684017991454684364") // precomputed ln(10)
+            ctx.mkDiv(lnX, ln10)
         }
       }
     }
@@ -234,5 +246,21 @@ object Z3Helper {
     case "bool" => ctx.mkBool(false)
   }
 
+  // Difficult to generalize without derivatives
+  def mkLnTaylor(ctx: Context, x: ArithExpr[_], terms: Int = 10): ArithExpr[_] = {
+    val one = ctx.mkReal(1).asInstanceOf[ArithExpr[_]]
+    val y = ctx.mkSub(x, one)
+    var result: ArithExpr[_] = y
+    var yPower: ArithExpr[_] = y
+    var sign = -1
+
+    for (k <- 2 to terms) {
+      yPower = ctx.mkMul(yPower, y)
+      val term = ctx.mkDiv(yPower, ctx.mkReal(k.toString).asInstanceOf[ArithExpr[_]])
+      result = if (sign > 0) ctx.mkAdd(result, term) else ctx.mkSub(result, term)
+      sign = -sign
+    }
+    result
+  }
 
 }

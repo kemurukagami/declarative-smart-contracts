@@ -112,6 +112,16 @@ class ArithmeticParser extends JavaTokenParsers {
   // Ignore C and C++-style comments. See: https://stackoverflow.com/a/5954831
   protected override val whiteSpace: Regex = """(\s|//.*|(?m)/\*(\*(?!/)|[^*])*\*/)+""".r
 
+  override def ident: Parser[String] =
+    super.ident.flatMap {
+      case "sqrt"  => failure("identifier 'sqrt' is reserved and cannot be used")
+      case "log10" => failure("identifier 'log10' is reserved and cannot be used")
+      // case "ln" => failure("identifier 'ln' is reserved and cannot be used")
+      case id      => success(id)
+    }
+
+  var importable_functions: Set[String] = Set()
+
   private def variable: Parser[Variable] = ident ^^ {x => Variable(AnyType(), x)}
   private def constant: Parser[Constant] = (wholeNumber | "true" | "false") ^^ {
     case "true" => Constant(BooleanType(), "true")
@@ -120,7 +130,23 @@ class ArithmeticParser extends JavaTokenParsers {
   }
   private def parameter: Parser[Param] = (constant | variable ) ^^ { p => Param(p)}
 
-  private def term : Parser[Arithmetic] = "(" ~> arithExpr <~ ")" | parameter
+  private def unaryExpr: Parser[Arithmetic] = ("sqrt" | "log10") ~ "(" ~ arithExpr ~ ")" ^^ {
+    case op ~ _ ~ e ~ _ => {
+      op match {
+        case "sqrt" => {
+          importable_functions = importable_functions + "sqrt"
+          println("Found sqrt")
+          Sqrt(e)
+        }
+        case "log10" => {
+          importable_functions = importable_functions + "log10"
+          Log10(e)
+        }
+      }
+    }
+  }
+
+  private def term : Parser[Arithmetic] = "(" ~> arithExpr <~ ")" | parameter | "(" ~> unaryExpr <~ ")"
 
   private def builtInFunction: Parser[Arithmetic] = {
     def min: Parser[Min] = (("min"~"(") ~> arithExpr <~ (",")) ~ (arithExpr <~ (")")) ^^ {
@@ -129,14 +155,22 @@ class ArithmeticParser extends JavaTokenParsers {
     min
   }
 
-  private def expr: Parser[Expr] = builtInFunction | arithExpr
+  private def expr: Parser[Expr] = builtInFunction | arithExpr | unaryExpr
 
-  def arithExpr: Parser[Arithmetic] = term ~ rep(("+"|"-"|"*"|"/") ~ term) ^^ {
+  def arithExpr: Parser[Arithmetic] = (term | unaryExpr) ~ rep(("+"|"-"|"*"|"/"|"^") ~ (term | unaryExpr)) ^^ {
     case t ~ ts => ts.foldLeft(t) {
-      case (t1, "+" ~ t2) => Add(t1, t2)
+      case (t1, "+" ~ t2) => {
+        println("Found +")
+        Add(t1, t2)
+      }
       case (t1, "-" ~ t2) => Sub(t1, t2)
       case (t1, "*" ~ t2) => Mul(t1, t2)
       case (t1, "/" ~ t2) => Div(t1, t2)
+      case (t1, "^" ~ t2) => {
+        println("Found rpow")
+        importable_functions = importable_functions + "rpow"
+        Pow(t1, t2)
+      }
       case _ => ???
     }
   }
@@ -145,7 +179,7 @@ class ArithmeticParser extends JavaTokenParsers {
     case p ~ op ~ e => Assign(p,e)
   }
 
-  def comparison: Parser[Functor] = (arithExpr) ~ (">="|"<="|">"|"<"|"!="|"==") ~ arithExpr ^^ {
+  def comparison: Parser[Functor] = (arithExpr | unaryExpr) ~ (">="|"<="|">"|"<"|"!="|"==") ~ (arithExpr | unaryExpr)  ^^ {
     case a ~ op ~ b => op match {
       case ">=" => Geq(a,b)
       case "<=" => Leq(a,b)
@@ -240,7 +274,10 @@ class Parser extends ArithmeticParser {
     | functionDecl
     | ruleDecl ).* ^^ {
     fs => {
-      val parsingContext = fs.foldLeft(ParsingContext()) {case (pc, f) => f(pc)}
+      val parsingContext = fs.foldLeft(ParsingContext()) {case (pc, f) => {
+        println(f.getClass.getName)
+        f(pc)
+      }}
       parsingContext.getProgram()
     }
   }
