@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: MIT  
+// ERC721 NFT implementation in Datalog  
+  
+// Parameters  
+.decl *owner(p: address)  
+  
+// Views - NFT-specific state  
+.decl ownerOf(tokenId: uint, o: address)[0]  
+.decl getApproved(tokenId: uint, approved: address)[0]  
+.decl isApprovedForAll(o: address, operator: address, approved: uint)[0,1]  
+  
+// Constructor  
+.decl constructor()  
+  
+// Transactions  
+.decl mint(to: address, tokenId: uint)  
+.decl recv_mint(to: address, tokenId: uint)  
+.decl burn(tokenId: uint)  
+.decl recv_burn(tokenId: uint)  
+.decl transfer(from: address, to: address, tokenId: uint)  
+.decl recv_transfer(to: address, tokenId: uint)  
+.decl transferFrom(from: address, to: address, tokenId: uint)  
+.decl recv_transferFrom(from: address, to: address, tokenId: uint)  
+.decl approve(o: address, approved: address, tokenId: uint)  
+.decl recv_approve(approved: address, tokenId: uint)  
+.decl setApprovalForAll(o: address, operator: address, approved: uint)  
+.decl recv_setApprovalForAll(operator: address, approved: uint)  
+  
+// Interfaces  
+.public recv_mint  
+.public recv_burn  
+.public recv_transfer  
+.public recv_transferFrom  
+.public recv_approve  
+.public recv_setApprovalForAll  
+.public ownerOf(1)  
+.public getApproved(1)  
+.public isApprovedForAll(2)  
+  
+// Constructor rules  
+owner(s) :- constructor(), msgSender(s).  
+
+  
+// Mint rules  
+mint(to, tokenId) :- recv_mint(to, tokenId), msgSender(s), owner(s),   
+                     to != 0, ownerOf(tokenId, 0).  
+  
+// Burn rules    
+burn(tokenId) :- recv_burn(tokenId), msgSender(s), owner(s),  
+                 ownerOf(tokenId, currentOwner), currentOwner != 0.  
+  
+// Transfer rules  
+transfer(from, to, tokenId) :- recv_transfer(to, tokenId), msgSender(from),  
+                               ownerOf(tokenId, from), to != 0.  
+  
+// TransferFrom rules - requires approval  
+// Case 1: Owner transfers their own token  
+transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId),  
+                                            msgSender(spender), ownerOf(tokenId, spender),  
+                                            to != 0, spender == from.  
+  
+// Case 2: Approved address transfers token  
+transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId), y:=sqrt(tokenId^100), sqrt(tokenId^100)!= sqrt(tokenId+2),
+                                            msgSender(spender), ownerOf(tokenId, from),  
+                                            to != 0, getApproved(tokenId, spender).  
+  
+// Case 3: Operator approved for all tokens transfers  
+transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId),  
+                                            msgSender(spender), ownerOf(tokenId, from),  
+                                            to != 0, isApprovedForAll(from, spender, approved), approved==1.
+  
+// Approve rules  
+approve(o, approved, tokenId) :- recv_approve(approved, tokenId),
+                                     msgSender(o), ownerOf(tokenId, o).  
+  
+// SetApprovalForAll rules  
+setApprovalForAll(o, operator, approved) :- recv_setApprovalForAll(operator, approved),  
+                                                msgSender(o), operator != 0.  
+  
+// Calculate current owner  
+ownerOf(tokenId, to) :- mint(to, tokenId).  
+ownerOf(tokenId, 0) :- burn(tokenId).  
+ownerOf(tokenId, to) :- transfer(_, to, tokenId).  
+ownerOf(tokenId, to) :- transferFrom(_, to, tokenId).
+  
+// Approval state updates  
+getApproved(tokenId, approved) :- approve(_, approved, tokenId).  
+getApproved(tokenId, 0) :- transfer(_, _, tokenId).  
+getApproved(tokenId, 0) :- transferFrom(_, _, tokenId).  
+getApproved(tokenId, 0) :- burn(tokenId).
+  
+isApprovedForAll(o, operator, approved) :- setApprovalForAll(o, operator, approved).  
+
+  
+// Violation checks  
+.decl invalidOwnership(tokenId: uint, owner1: address, owner2: address)[0]  
+.violation invalidOwnership  
+invalidOwnership(tokenId, owner1, owner2) :- ownerOf(tokenId, owner1), ownerOf(tokenId, owner2),
+                                             owner1 != owner2, owner1 != 0, owner2 != 0.
