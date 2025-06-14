@@ -100,7 +100,7 @@ object Main extends App {
             imports = imports + "import \"@openzeppelin/contracts/utils/math/Math.sol\";"
           }
           if (func == "rpow") {
-            val lib_path = "./src/main/scala/libraries/DSMath.sol"
+            val lib_path = "./src/main/scala/solidity_libraries/DSMath.sol"
             val lib_content = fileToString(lib_path)
             imports = imports + lib_content
           }
