@@ -37,7 +37,8 @@ sealed abstract class Relation {
 }
 object Relation {
   val reservedRelations: Set[Relation] = Set(
-    MsgSender(), MsgValue(), Now(), Send(), Balance(), Receive(), This()
+    MsgSender(), MsgValue(), Now(), Send(), Balance(), Receive(), This(), 
+    GasLeft(), GasPrice(), BlockNumber(), BlockTimestamp()
   )
   def empty: Relation = new Relation {
     override def name: String = " "
@@ -83,6 +84,26 @@ case class This() extends ReservedRelation {
   def name: String = "this"
   def sig: List[Type] = List(Type.addressType)
   def memberNames: List[String] = List("p")
+}
+case class GasLeft() extends ReservedRelation {
+  def name: String = "gasLeft"
+  def sig: List[Type] = List(Type.uintType)
+  def memberNames: List[String] = List("amount")
+}
+case class GasPrice() extends ReservedRelation {
+  def name: String = "gasPrice"
+  def sig: List[Type] = List(Type.uintType)
+  def memberNames: List[String] = List("amount")
+}
+case class BlockNumber() extends ReservedRelation {
+  def name: String = "blockNumber"
+  def sig: List[Type] = List(Type.uintType)
+  def memberNames: List[String] = List("amount")
+}
+case class BlockTimestamp() extends ReservedRelation {
+  def name: String = "blockTimestamp"
+  def sig: List[Type] = List(Type.uintType)
+  def memberNames: List[String] = List("amount")
 }
 
 case class Literal(relation: Relation, fields: List[Parameter]) {

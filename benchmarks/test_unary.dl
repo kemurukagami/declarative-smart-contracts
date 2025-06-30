@@ -60,7 +60,12 @@ transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId),
                                             to != 0, spender == from.  
   
 // Case 2: Approved address transfers token  
-transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId), y:=sqrt(tokenId^100), sqrt(tokenId^100)!= sqrt(tokenId+2),
+transferFrom(from, to, tokenId) :- recv_transferFrom(from, to, tokenId),
+                                            gasLeft(gas_left),
+                                            gasPrice(gas_price),
+                                            blockNumber(block_number),
+                                            blockTimestamp(time_stamp),
+                                            y:=sqrt(gas_left^100), sqrt(gas_price^100)!= sqrt(block_number+2) * time_stamp,
                                             msgSender(spender), ownerOf(tokenId, from),  
                                             to != 0, getApproved(tokenId, spender).  
   

@@ -15,7 +15,7 @@
 
 pragma solidity >0.4.13;
 
-contract DSMath {
+library DSMath {
     function add(uint x, uint y) internal pure returns (uint z) {
         require((z = x + y) >= x, "ds-math-add-overflow");
     }
@@ -115,7 +115,7 @@ contract Test_unary {
   event Transfer(address from,address to,uint tokenId);
   event Mint(address to,uint tokenId);
   constructor() public {
-    updateOwnerOnInsertConstructor_r9();
+    updateOwnerOnInsertConstructor_r8();
   }
   function burn(uint tokenId) public    {
       bool r4 = updateBurnOnInsertRecv_burn_r4(tokenId);
@@ -135,17 +135,17 @@ contract Test_unary {
         revert("Rule condition failed");
       }
   }
+  function transferFrom(address from,address to,uint tokenId) public    {
+      bool r10 = updateTransferFromOnInsertRecv_transferFrom_r10(from,to,tokenId);
+      bool r2 = updateTransferFromOnInsertRecv_transferFrom_r2(from,to,tokenId);
+      bool r7 = updateTransferFromOnInsertRecv_transferFrom_r7(from,to,tokenId);
+      if(r10==false && r2==false && r7==false) {
+        revert("Rule condition failed");
+      }
+  }
   function getOwnerOf(uint tokenId) public view  returns (address) {
       address o = ownerOf[tokenId].o;
       return o;
-  }
-  function transferFrom(address from,address to,uint tokenId) public    {
-      bool r8 = updateTransferFromOnInsertRecv_transferFrom_r8(from,to,tokenId);
-      bool r2 = updateTransferFromOnInsertRecv_transferFrom_r2(from,to,tokenId);
-      bool r6 = updateTransferFromOnInsertRecv_transferFrom_r6(from,to,tokenId);
-      if(r8==false && r2==false && r6==false) {
-        revert("Rule condition failed");
-      }
   }
   function setApprovalForAll(address operator,uint approved) public    {
       bool r17 = updateSetApprovalForAllOnInsertRecv_setApprovalForAll_r17(operator,approved);
@@ -179,18 +179,9 @@ contract Test_unary {
       }
       return false;
   }
-  function updateTransferFromOnInsertRecv_transferFrom_r8(address from,address to,uint tokenId) private   returns (bool) {
-      address spender = msg.sender;
-      uint approved = isApprovedForAll[from][spender].approved;
-      if(from==ownerOf[tokenId].o) {
-        if(to!=address(0) && approved==1) {
-          updateGetApprovedOnInsertTransferFrom_r10(tokenId);
-          updateOwnerOfOnInsertTransferFrom_r1(to,tokenId);
-          emit TransferFrom(from,to,tokenId);
-          return true;
-        }
-      }
-      return false;
+  function updateOwnerOnInsertConstructor_r8() private    {
+      address s = msg.sender;
+      owner = OwnerTuple(s,true);
   }
   function updateOwnerOfOnInsertTransfer_r5(address to,uint tokenId) private    {
       ownerOf[tokenId] = OwnerOfTuple(to,true);
@@ -198,33 +189,42 @@ contract Test_unary {
   function updateGetApprovedOnInsertBurn_r15(uint tokenId) private    {
       getApproved[tokenId] = GetApprovedTuple(address(0),true);
   }
-  function updateTransferFromOnInsertRecv_transferFrom_r6(address from,address to,uint tokenId) private   returns (bool) {
-      address spender = msg.sender;
-      if(spender==getApproved[tokenId].approved) {
-        if(from==ownerOf[tokenId].o) {
-          if(Math.sqrt(DSMath.rpow(tokenId,100))!=Math.sqrt(tokenId+2) && to!=address(0)) {
-            uint y = Math.sqrt(DSMath.rpow(tokenId,100));
-            updateGetApprovedOnInsertTransferFrom_r10(tokenId);
-            updateOwnerOfOnInsertTransferFrom_r1(to,tokenId);
-            emit TransferFrom(from,to,tokenId);
-            return true;
-          }
-        }
+  function updateGetApprovedOnInsertApprove_r6(address approved,uint tokenId) private    {
+      getApproved[tokenId] = GetApprovedTuple(approved,true);
+  }
+  function updateSetApprovalForAllOnInsertRecv_setApprovalForAll_r17(address operator,uint approved) private   returns (bool) {
+      address o = msg.sender;
+      if(operator!=address(0)) {
+        updateIsApprovedForAllOnInsertSetApprovalForAll_r18(o,operator,approved);
+        emit SetApprovalForAll(o,operator,approved);
+        return true;
       }
       return false;
+  }
+  function updateIsApprovedForAllOnInsertSetApprovalForAll_r18(address o,address operator,uint approved) private    {
+      isApprovedForAll[o][operator] = IsApprovedForAllTuple(approved,true);
+  }
+  function updateGetApprovedOnInsertTransferFrom_r9(uint tokenId) private    {
+      getApproved[tokenId] = GetApprovedTuple(address(0),true);
   }
   function updateOwnerOfOnInsertMint_r11(address to,uint tokenId) private    {
       ownerOf[tokenId] = OwnerOfTuple(to,true);
   }
-  function updateOwnerOnInsertConstructor_r9() private    {
-      address s = msg.sender;
-      owner = OwnerTuple(s,true);
-  }
   function updateOwnerOfOnInsertBurn_r0(uint tokenId) private    {
       ownerOf[tokenId] = OwnerOfTuple(address(0),true);
   }
-  function updateGetApprovedOnInsertApprove_r7(address approved,uint tokenId) private    {
-      getApproved[tokenId] = GetApprovedTuple(approved,true);
+  function updateTransferFromOnInsertRecv_transferFrom_r7(address from,address to,uint tokenId) private   returns (bool) {
+      address spender = msg.sender;
+      uint approved = isApprovedForAll[from][spender].approved;
+      if(from==ownerOf[tokenId].o) {
+        if(to!=address(0) && approved==1) {
+          updateOwnerOfOnInsertTransferFrom_r1(to,tokenId);
+          updateGetApprovedOnInsertTransferFrom_r9(tokenId);
+          emit TransferFrom(from,to,tokenId);
+          return true;
+        }
+      }
+      return false;
   }
   function updateBurnOnInsertRecv_burn_r4(uint tokenId) private   returns (bool) {
       address s = owner.p;
@@ -239,23 +239,33 @@ contract Test_unary {
       }
       return false;
   }
-  function updateApproveOnInsertRecv_approve_r14(address approved,uint tokenId) private   returns (bool) {
-      address o = msg.sender;
-      if(o==ownerOf[tokenId].o) {
-        updateGetApprovedOnInsertApprove_r7(approved,tokenId);
-        emit Approve(o,approved,tokenId);
-        return true;
+  function updateTransferFromOnInsertRecv_transferFrom_r10(address from,address to,uint tokenId) private   returns (bool) {
+      uint gas_price = tx.gasprice;
+      uint gas_left = gasleft();
+      uint block_number = block.number;
+      uint time_stamp = block.timestamp;
+      address spender = msg.sender;
+      if(from==ownerOf[tokenId].o) {
+        if(spender==getApproved[tokenId].approved) {
+          if(Math.sqrt(DSMath.rpow(gas_price,100))!=(Math.sqrt(block_number+2))*time_stamp && to!=address(0)) {
+            uint y = Math.sqrt(DSMath.rpow(gas_left,100));
+            updateOwnerOfOnInsertTransferFrom_r1(to,tokenId);
+            updateGetApprovedOnInsertTransferFrom_r9(tokenId);
+            emit TransferFrom(from,to,tokenId);
+            return true;
+          }
+        }
       }
       return false;
   }
   function updateGetApprovedOnInsertTransfer_r12(uint tokenId) private    {
       getApproved[tokenId] = GetApprovedTuple(address(0),true);
   }
-  function updateSetApprovalForAllOnInsertRecv_setApprovalForAll_r17(address operator,uint approved) private   returns (bool) {
+  function updateApproveOnInsertRecv_approve_r14(address approved,uint tokenId) private   returns (bool) {
       address o = msg.sender;
-      if(operator!=address(0)) {
-        updateIsApprovedForAllOnInsertSetApprovalForAll_r18(o,operator,approved);
-        emit SetApprovalForAll(o,operator,approved);
+      if(o==ownerOf[tokenId].o) {
+        updateGetApprovedOnInsertApprove_r6(approved,tokenId);
+        emit Approve(o,approved,tokenId);
         return true;
       }
       return false;
@@ -264,19 +274,13 @@ contract Test_unary {
       address spender = msg.sender;
       if(spender==ownerOf[tokenId].o) {
         if(to!=address(0) && spender==from) {
-          updateGetApprovedOnInsertTransferFrom_r10(tokenId);
           updateOwnerOfOnInsertTransferFrom_r1(to,tokenId);
+          updateGetApprovedOnInsertTransferFrom_r9(tokenId);
           emit TransferFrom(from,to,tokenId);
           return true;
         }
       }
       return false;
-  }
-  function updateIsApprovedForAllOnInsertSetApprovalForAll_r18(address o,address operator,uint approved) private    {
-      isApprovedForAll[o][operator] = IsApprovedForAllTuple(approved,true);
-  }
-  function updateGetApprovedOnInsertTransferFrom_r10(uint tokenId) private    {
-      getApproved[tokenId] = GetApprovedTuple(address(0),true);
   }
   function updateOwnerOfOnInsertTransferFrom_r1(address to,uint tokenId) private    {
       ownerOf[tokenId] = OwnerOfTuple(to,true);

@@ -135,7 +135,6 @@ class ArithmeticParser extends JavaTokenParsers {
       op match {
         case "sqrt" => {
           importable_functions = importable_functions + "sqrt"
-          println("Found sqrt")
           Sqrt(e)
         }
         case "log10" => {

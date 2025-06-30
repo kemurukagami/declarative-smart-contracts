@@ -19,6 +19,10 @@ case class GroundVar(p: Parameter, relation: Relation, keys: List[Parameter], va
       case _:Now => s"${p._type} $p = block.timestamp;"
       case _:Send => throw new Exception("Send should not appear in body.")
       case _:This => s"${p._type} $p = address(this);"
+      case _:GasLeft => s"${p._type} $p = gasleft();"
+      case _:GasPrice => s"${p._type} $p = tx.gasprice;"
+      case _:BlockNumber => s"${p._type} $p = block.number;"
+      case _:BlockTimestamp => s"${p._type} $p = block.timestamp;"
       case _:Receive => ???
       case _:SimpleRelation => {
         if (enableProjection) {
@@ -451,6 +455,10 @@ case class MatchRelationField(relation: Relation, keys: List[Parameter], index: 
       case _: MsgValue => s"$p==msg.value"
       case _: Now => s"$p==block.timestamp"
       case _: This => s"$p == address(this)"
+      case _: GasLeft => s"$p == gasleft()"
+      case _: GasPrice => s"$p == tx.gasprice"
+      case _: BlockNumber => s"$p == block.number"
+      case _: BlockTimestamp => s"$p == block.timestamp"
       case _: Send => throw new Exception(s"Send relation should not be matched.")
       case _: Receive => ???
       case _:SingletonRelation => {
